@@ -295,6 +295,71 @@ const searchTranslations = async (req, res) => {
     }
 }
 
+const addLanguageToKey = async (req, res) => {
+    const { id } = req.params;
+    const { languageCode, englishText } = req.body;
+
+    if (!languageCode || !englishText) {
+        return res.status(400).json({
+            success: false,
+            message: "Language code and English text are required"
+        });
+    }
+
+    try {
+        const textDoc = await translateModel.findById(id);
+
+        if (!textDoc) {
+            return res.status(404).json({
+                success: false,
+                message: "Translation key not found"
+            });
+        }
+
+        const exists = textDoc.translations.find(t => t.languageCode === languageCode);
+        if (exists) {
+            return res.status(400).json({
+                success: false,
+                message: "Language already exists for this key"
+            });
+        }
+
+        let translatedText = englishText;
+        if (languageCode !== 'en') {
+            try {
+                const response = await translate(englishText, { to: languageCode });
+                translatedText = response.text;
+            } catch (error) {
+                console.error(`Translation failed for ${languageCode}:`, error);
+                return res.status(500).json({
+                    success: false,
+                    message: `Failed to translate to ${languageCode}`
+                });
+            }
+        }
+
+        textDoc.translations.push({
+            languageCode: languageCode,
+            translatedText: translatedText
+        });
+
+        await textDoc.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Language added successfully",
+            data: textDoc
+        });
+
+    } catch (error) {
+        console.error("Add Language Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to add language"
+        });
+    }
+}
+
 module.exports = {
     translateText,
     editTranslation,
@@ -303,5 +368,6 @@ module.exports = {
     getAllTranslatedText,
     deleteParticularTranslation,
     createTranslationKey,
-    searchTranslations
+    searchTranslations,
+    addLanguageToKey
 };

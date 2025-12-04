@@ -13,26 +13,66 @@ const Dashboard = () => {
 
     useEffect(() => {
         loadStats();
+
+        const intervalId = setInterval(() => {
+            loadStats();
+        }, 2000);
+
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                loadStats();
+            }
+        };
+
+        const handleFocus = () => {
+            loadStats();
+        };
+
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            clearInterval(intervalId);
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, []);
 
     const loadStats = async () => {
         try {
             const data = await api.getAllTranslations();
+
+            if (!data || !Array.isArray(data)) {
+                setStats({
+                    totalKeys: 0,
+                    languages: 0,
+                    autoTranslated: 0
+                });
+                setLoading(false);
+                return;
+            }
+
             const languageSet = new Set();
             let totalTranslations = 0;
 
             data.forEach(item => {
-                item.translations.forEach(t => {
-                    languageSet.add(t.languageCode);
-                    totalTranslations++;
-                });
+                if (item && item.translations && Array.isArray(item.translations)) {
+                    item.translations.forEach(t => {
+                        if (t && t.languageCode) {
+                            languageSet.add(t.languageCode.toLowerCase());
+                            totalTranslations++;
+                        }
+                    });
+                }
             });
 
-            setStats({
+            const newStats = {
                 totalKeys: data.length,
                 languages: languageSet.size,
                 autoTranslated: totalTranslations
-            });
+            };
+
+            setStats(newStats);
         } catch (error) {
             console.error('Failed to load stats:', error);
         } finally {
@@ -55,7 +95,7 @@ const Dashboard = () => {
 
             {/* Stats Cards */}
             <section className="max-w-7xl mx-auto">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
 
                     <div className="p-4 sm:p-5 bg-white shadow rounded-xl flex items-center justify-between hover:shadow-md transition-shadow">
                         <div>
@@ -90,18 +130,6 @@ const Dashboard = () => {
                         </div>
                         <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-purple-50">
                             <Globe className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
-                        </div>
-                    </div>
-
-                    <div className="p-4 sm:p-5 bg-white shadow rounded-xl flex items-center justify-between hover:shadow-md transition-shadow">
-                        <div>
-                            <p className="text-xs sm:text-sm text-gray-600">Avg per Key</p>
-                            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">
-                                {loading ? '...' : stats.totalKeys > 0 ? Math.round(stats.autoTranslated / stats.totalKeys) : 0}
-                            </h2>
-                        </div>
-                        <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-amber-50">
-                            <Search className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
                         </div>
                     </div>
 

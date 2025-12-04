@@ -2,7 +2,12 @@ const API_BASE_URL = 'http://localhost:3000/api/v1';
 
 export const api = {
     async getAllTranslations() {
-        const response = await fetch(`${API_BASE_URL}/translate`);
+        const response = await fetch(`${API_BASE_URL}/translate?t=${Date.now()}`, {
+            cache: 'no-cache',
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        });
         if (!response.ok) throw new Error('Failed to fetch translations');
         const result = await response.json();
         return result.data || [];
@@ -57,6 +62,20 @@ export const api = {
         });
         if (!response.ok) throw new Error('Failed to delete translation');
         return true;
+    },
+
+    async addLanguageToKey(id, languageCode, englishText) {
+        const response = await fetch(`${API_BASE_URL}/add-language/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ languageCode, englishText })
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to add language');
+        }
+        const result = await response.json();
+        return result.data;
     }
 };
 
