@@ -1,8 +1,16 @@
 import React, { useState } from "react";
+import {api} from "./utils/api"
+import { useNavigate } from "react-router-dom";
 
 const AddNew = () => {
+    const navigate = useNavigate();
+    const [translationKey, setTranslationKey] = useState("");
     const [englishText, setEnglishText] = useState("");
-    const [translations, setTranslations] = useState({ hi: "", te: "", ta: "" });
+    const [selectedLanguages, setSelectedLanguages] = useState(['hi', 'te', 'ta']);
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState({ type: '', text: '' });
+    const [generatedTranslations, setGeneratedTranslations] = useState(null);
 
     const availableLanguages = [
         { code: 'hi', label: 'Hindi' },
@@ -11,13 +19,71 @@ const AddNew = () => {
         { code: 'en', label: 'English' }
     ];
 
-    const [selectedLanguages, setSelectedLanguages] = useState(['hi', 'te', 'ta']);
-    const [dropdownOpen, setDropdownOpen] = useState(false);
-
     const toggleLanguage = (code) => {
         setSelectedLanguages(prev =>
             prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
         );
+    };
+
+    const handleAutoGenerate = async () => {
+        if (!translationKey.trim() || !englishText.trim()) {
+            setMessage({ type: 'error', text: 'Please enter both translation key and English text' });
+            setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+            return;
+        }
+
+        if (selectedLanguages.length === 0) {
+            setMessage({ type: 'error', text: 'Please select at least one language' });
+            setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+            return;
+        }
+
+        setLoading(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            const result = await api.createTranslationKey(translationKey, englishText, selectedLanguages);
+            setGeneratedTranslations(result);
+            setMessage({ type: 'success', text: 'Translations generated successfully!' });
+            setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+        } catch (error) {
+            setMessage({ type: 'error', text: error.message || 'Failed to generate translations' });
+            setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        
+        if (!translationKey.trim() || !englishText.trim()) {
+            setMessage({ type: 'error', text: 'Please enter both translation key and English text' });
+            setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+            return;
+        }
+
+        if (selectedLanguages.length === 0) {
+            setMessage({ type: 'error', text: 'Please select at least one language' });
+            setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+            return;
+        }
+
+        setLoading(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            await api.createTranslationKey(translationKey, englishText, selectedLanguages);
+            setMessage({ type: 'success', text: 'Translation saved successfully!' });
+            setTimeout(() => {
+                navigate('/');
+            }, 1500);
+        } catch (error) {
+            setMessage({ type: 'error', text: error.message || 'Failed to save translation' });
+            setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -30,7 +96,27 @@ const AddNew = () => {
                 </div>
 
                 {/* Card */}
-                <form className="bg-white shadow rounded-xl p-6">
+                <form onSubmit={handleSave} className="bg-white shadow rounded-xl p-6">
+                    {message.text && (
+                        <div className={`mb-4 p-3 rounded-lg ${
+                            message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                        }`}>
+                            {message.text}
+                        </div>
+                    )}
+
+                    {/* Translation Key */}
+                    <label htmlFor="key" className="block text-sm font-semibold text-gray-700">Translation Key</label>
+                    <input
+                        id="key"
+                        type="text"
+                        value={translationKey}
+                        onChange={(e) => setTranslationKey(e.target.value)}
+                        placeholder="Enter translation key..."
+                        className="w-full mt-2 mb-4 px-4 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-400 text-black"
+                        required
+                    />
+
                     {/* English Text */}
                     <label htmlFor="english" className="block text-sm font-semibold text-gray-700">English Text</label>
                     <input
@@ -40,6 +126,7 @@ const AddNew = () => {
                         onChange={(e) => setEnglishText(e.target.value)}
                         placeholder="Enter English text..."
                         className="w-full mt-2 mb-4 px-4 py-3 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-400 text-black"
+                        required
                     />
 
                     {/* Language selector + Translation Inputs */}
@@ -86,13 +173,35 @@ const AddNew = () => {
                         
                     </div>
 
+                    {generatedTranslations && (
+                        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                            <h3 className="text-sm font-semibold text-gray-700 mb-2">Generated Translations:</h3>
+                            <div className="space-y-2">
+                                {generatedTranslations.translations.map((t, idx) => (
+                                    <div key={idx} className="text-sm">
+                                        <span className="font-medium">{t.languageCode}:</span> {t.translatedText}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Actions */}
                     <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <button type="button" className="w-full inline-flex items-center justify-center px-4 py-3 rounded-lg bg-white border border-gray-200 text-gray-700 shadow hover:bg-gray-50">
-                            Auto Generate Translations
+                        <button 
+                            type="button" 
+                            onClick={handleAutoGenerate}
+                            disabled={loading}
+                            className="w-full inline-flex items-center justify-center px-4 py-3 rounded-lg bg-white border border-gray-200 text-gray-700 shadow hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {loading ? 'Generating...' : 'Auto Generate Translations'}
                         </button>
-                        <button type="submit" className="w-full inline-flex items-center justify-center px-4 py-3 rounded-lg bg-sky-600 text-white font-medium shadow hover:bg-sky-700">
-                            Save Translation
+                        <button 
+                            type="submit" 
+                            disabled={loading}
+                            className="w-full inline-flex items-center justify-center px-4 py-3 rounded-lg bg-sky-600 text-white font-medium shadow hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {loading ? 'Saving...' : 'Save Translation'}
                         </button>
                     </div>
                 </form>

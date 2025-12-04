@@ -195,4 +195,113 @@ const getAllTranslatedText = async (req, res) => {
     }
 }
 
-module.exports = { translateText, editTranslation, getTranslationTextFromAnotherLanguage, deleteTranslation, getAllTranslatedText , deleteParticularTranslation};
+const createTranslationKey = async (req, res) => {
+    const { key, englishText, languages } = req.body;
+
+    if (!key || !englishText || !languages || languages.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: "Key, English text, and at least one language are required"
+        });
+    }
+
+    try {
+        const searchKey = key.toLowerCase().trim();
+        let textDoc = await translateModel.findOne({ text: searchKey });
+
+        const translations = [];
+
+        for (const lang of languages) {
+            if (lang === 'en') {
+                translations.push({
+                    languageCode: 'en',
+                    translatedText: englishText
+                });
+            } else {
+                try {
+                    const response = await translate(englishText, { to: lang });
+                    translations.push({
+                        languageCode: lang,
+                        translatedText: response.text
+                    });
+                } catch (error) {
+                    console.error(`Translation failed for ${lang}:`, error);
+                }
+            }
+        }
+
+        if (textDoc) {
+            for (const newTranslation of translations) {
+                const exists = textDoc.translations.find(t => t.languageCode === newTranslation.languageCode);
+                if (!exists) {
+                    textDoc.translations.push(newTranslation);
+                }
+            }
+            await textDoc.save();
+            return res.status(200).json({
+                success: true,
+                message: "Translation key updated successfully",
+                data: textDoc
+            });
+        } else {
+            const newTextDoc = new translateModel({
+                text: searchKey,
+                translations: translations
+            });
+            await newTextDoc.save();
+            return res.status(201).json({
+                success: true,
+                message: "Translation key created successfully",
+                data: newTextDoc
+            });
+        }
+
+    } catch (error) {
+        console.error("Create Translation Key Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to create translation key"
+        });
+    }
+}
+
+const searchTranslations = async (req, res) => {
+    const { q } = req.query;
+
+    try {
+        let query = {};
+        if (q) {
+            query = {
+                $or: [
+                    { text: { $regex: q, $options: 'i' } },
+                    { 'translations.translatedText': { $regex: q, $options: 'i' } }
+                ]
+            };
+        }
+
+        const results = await translateModel.find(query);
+        return res.status(200).json({
+            success: true,
+            message: "Search completed",
+            data: results
+        });
+
+    } catch (error) {
+        console.error("Search Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Search failed"
+        });
+    }
+}
+
+module.exports = {
+    translateText,
+    editTranslation,
+    getTranslationTextFromAnotherLanguage,
+    deleteTranslation,
+    getAllTranslatedText,
+    deleteParticularTranslation,
+    createTranslationKey,
+    searchTranslations
+};

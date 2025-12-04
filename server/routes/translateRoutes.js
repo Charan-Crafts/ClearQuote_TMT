@@ -16,4 +16,8 @@ router.get("/translate",translateController.getAllTranslatedText);
 
 router.delete("/delete-translation/:id/:languageCode",translateController.deleteParticularTranslation)
 
+router.post("/create-translation-key", translateController.createTranslationKey);
+
+router.get("/search", translateController.searchTranslations);
+
 module.exports = router;
